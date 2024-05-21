@@ -1,0 +1,41 @@
+//////12. Синхронизированный вывод 2
+//////Докажите, что задача 11 не может быть решена с использованием двух мьютексов
+//////без использования других средств синхронизации.
+//////
+//////Текст задачи 11: Синхронизированный вывод
+//////Модифицируйте программу упр. 1 так, чтобы вывод родительской и дочерней потоках
+//////был синхронизован : сначала родительская поток выводила первую строку, затем дочерняя,
+//////затем родительская вторую строку и т.д.Используйте мьютексы.Рекомендуется использовать
+//////мьютексы типа PTHREAD_MUTEX_ERRORCHECK.
+//////Явные и неявные передачи управления между нитями(sleep(3C) / usleep(3C), sched_yield(3RT)) и
+//////холостые циклы разрешается использовать только на этапе инициализации.
+
+
+#define HAVE_STRUCT_TIMESPEC
+#include <iostream>
+#include <thread>
+#include <mutex>
+
+std::mutex mutex1;
+std::mutex mutex2;
+
+void printText(const std::string& threadName, std::mutex& firstMutex, std::mutex& secondMutex) {
+    for (int i = 0; i < 5; ++i) {
+        std::lock_guard<std::mutex> lock1(firstMutex);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Имитируем работу
+        std::lock_guard<std::mutex> lock2(secondMutex);
+        std::cout << "String #" << i + 1 << " " << threadName << std::endl;
+    }
+}
+
+int main() {
+    std::thread thread2(printText, "2nd thread", std::ref(mutex2), std::ref(mutex1));
+
+    printText("main", mutex1, mutex2);
+
+    thread2.join();
+    return 0;
+}
+
+////////      В этом примере главный поток захватывает mutex1, второй поток захватывает mutex2, 
+////////      оба потока блокируются ожидая освобождения мьютексов. Происходит взаимная блокировка.
