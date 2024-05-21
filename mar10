@@ -1,0 +1,93 @@
+//////// 10. Обедающие философы
+//////Возьмите за основу программу din_phil.C.Эта программа симулирует известную задачу про обедающих философов.
+//////Пять философов сидят за круглым столом и едят спагетти.Спагетти едят при помощи двух вилок.
+//////Каждые двое философов, сидящих рядом, пользуются общей вилкой.Философ некоторое время размышляет, 
+//////потом пытается взять вилки и принимается за еду.Съев некоторое количество спагетти, 
+//////философ освобождает вилки и снова начинает размышлять.
+//////Еще через некоторое время он снова принимается за еду, и т.Д., пока спагетти не кончатся.
+//////Если одну из вилок взять не получается, философ ждет, пока она освободится.
+//////В программе din_phil.C философы симулируются при помощи потоков, периоды размышлений и еды – при помощи usleep(3c),
+//////а вилки – при помощи мутексов.Философы всегда берут сначала левую вилку, а потом правую.
+//////При некоторых обстоятельствах это может приводить к мертвой блокировке.
+//////Измените протокол взаимодействия философов с вилками таким образом, чтобы мертвых блокировок не происходило.
+
+#define HAVE_STRUCT_TIMESPEC
+#include <iostream>
+#include <string>
+#include <vector>
+#include <thread>
+#include <pthread.h>
+#include <chrono>
+
+ 
+ 
+#include <windows.h>
+
+#define NUM_PHILOSOPHERS 5
+
+HANDLE forks[NUM_PHILOSOPHERS];
+
+DWORD WINAPI philosopher(LPVOID arg) {
+    int id = *(int*)arg;
+    int left_fork = id;
+    int right_fork = (id + 1) % NUM_PHILOSOPHERS;
+
+    while (true) {
+        // Философ размышляет
+        std::cout << "Философ " << id << " размышляет." << std::endl;
+        Sleep(1000);
+
+        // Философ берет вилки в обратном порядке
+        if (id == NUM_PHILOSOPHERS - 1) {
+            WaitForSingleObject(forks[left_fork], INFINITE);
+            WaitForSingleObject(forks[right_fork], INFINITE);
+        }
+        else {
+            WaitForSingleObject(forks[right_fork], INFINITE);
+            WaitForSingleObject(forks[left_fork], INFINITE);
+        }
+
+        // Философ ест
+        std::cout << "Философ " << id << " начал есть." << std::endl;
+        Sleep(1000);
+        std::cout << "Философ " << id << " закончил есть и освободил вилки." << std::endl;
+
+        // Философ освобождает вилки
+        ReleaseMutex(forks[left_fork]);
+        ReleaseMutex(forks[right_fork]);
+    }
+
+    return 0;
+}
+
+int main() {
+    setlocale(LC_ALL, "Russian");
+    HANDLE philosophers[NUM_PHILOSOPHERS];
+    int philosopher_ids[NUM_PHILOSOPHERS];
+
+    // Инициализация мьютексов для вилок
+    for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+        forks[i] = CreateMutex(nullptr, FALSE, nullptr);
+    }
+
+    // Создание потоков для философов
+    for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+        philosopher_ids[i] = i;
+        philosophers[i] = CreateThread(NULL, 0, philosopher, &philosopher_ids[i], 0, NULL);
+    }
+
+    // Ожидание завершения потоков
+    WaitForMultipleObjects(NUM_PHILOSOPHERS, philosophers, TRUE, INFINITE);
+
+    // Закрытие дескрипторов потоков
+    for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+        CloseHandle(philosophers[i]);
+    }
+
+    // Уничтожение мьютексов для вилок
+    for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+        CloseHandle(forks[i]);
+    }
+
+    return 0;
+}
