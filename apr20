@@ -1,0 +1,74 @@
+//////Текст задания 18:
+//////Переделайте программу упр. 17 так, чтобы с каждой записью(а также с заголовком списка) был связан свой собственный мьютекс.
+//////Примечание: при перестановке записей списка, необходимой при реализации пузырьковой сортировки, необходимо блокировать мьютексы трех записей.
+//////Примечание 2 : чтобы избежать мертвых блокировок, мьютексы записей, более близких к началу списка, всегда захватывайте раньше.
+//////Примечание 3 : преподаватель может потребовать, чтобы программа включала две или более сортирующие нити, а также потребовать изменить интервал между сортировками.
+// 
+////////20. Использование блокировки чтения-записи
+//////Модифицируйте программу упр. 18 так, чтобы вместо мьютекса использовалась блокировка чтения - записи.
+
+#define HAVE_STRUCT_TIMESPEC
+
+#include <thread>
+#include <shared_mutex>   //////  блокировка чтения-записи
+#include <list>
+#include <algorithm>
+#include <string>
+#include <iostream>
+#include <chrono>
+
+struct Entry {
+    std::string data;
+    mutable std::shared_mutex mutex;
+
+    Entry(const std::string& str = "") : data(str) {}
+};
+
+std::list<Entry> strList;
+std::shared_mutex listMutex;
+
+void sortListPeriodically() {
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        {
+            std::unique_lock<std::shared_mutex> lock(listMutex);
+            strList.sort([](const Entry& a, const Entry& b) { return a.data < b.data; });
+        }
+    }
+}
+
+int main() {
+    std::thread sortThread(sortListPeriodically);
+
+    while (true) {
+        std::string input;
+        std::getline(std::cin, input);
+
+        if (input.empty()) {
+            {
+                std::shared_lock<std::shared_mutex> lock(listMutex);
+                for (const auto& entry : strList) {
+                    std::shared_lock<std::shared_mutex> entryLock(entry.mutex);
+                    std::cout << entry.data << std::endl;
+                }
+            }
+        }
+        else {
+            while (input.size() > 80) {
+                {
+                    std::unique_lock<std::shared_mutex> lock(listMutex);
+                    strList.emplace_front(input.substr(0, 80));
+                    input = input.substr(80);
+                }
+            }
+            {
+                std::unique_lock<std::shared_mutex> lock(listMutex);
+                strList.emplace_front(input);
+            }
+        }
+    }
+
+    sortThread.join();
+
+    return 0;
+}
