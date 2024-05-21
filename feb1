@@ -1,0 +1,28 @@
+//////1. Создание потока
+//////Напишите программу, которая создает поток.Используйте атрибуты по умолчанию.
+//////Родительский и вновь созданный поток должны распечатать десять строк текста.
+
+#define HAVE_STRUCT_TIMESPEC
+#include <iostream>
+#include <thread>
+#include <pthread.h>
+#include <vector>
+#include <chrono>
+
+
+
+void printText(std::string threadName) {
+    for (int i = 0; i < 5; i++) {
+        std::cout << " String # " << i + 1 << "  " << threadName << std::endl;
+    }
+}
+//////////////////////////////////////////////////////////////////////////// task 1
+int main() {
+
+    std::thread thread2(printText, "2-nd thread");
+
+    printText("main");
+
+    thread2.join();
+    return 0;
+} 
