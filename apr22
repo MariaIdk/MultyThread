@@ -1,0 +1,85 @@
+//////22. Обедающие философы 2
+//////
+//////Решите задачу упр. 10 при помощи атомарного захвата вилок.Когда философ может взять одну вилку,
+//////но не может взять другую, он должен положить вилку на стол и ждать, пока освободятся обе вилки.
+//////Рекомендация: создайте еще мьютекс forks и условную переменную.
+//////При попытке взять вилку философ должен захватывать forks и проверять доступность обоих вилок при помощи pthread_trylock(3C).
+//////Если одна из вилок недоступна, философ должен освободить вторую вилку(если он успел ее захватить) 
+//////и заснуть на условной переменной.Освобождая вилки, философ должен оповещать остальных философов об этом 
+//////при помощи условной переменной.Тщательно продумайте процедуру захвата и освобождения мьютексов, 
+//////чтобы избежать ошибок потерянного пробуждения.
+
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <chrono>
+
+// Количество философов
+const int numPhilosophers = 5;
+
+// Массив атомарных флагов для вилок
+std::atomic<bool> forks[numPhilosophers];
+
+// Мьютекс и условная переменная для синхронизации
+std::mutex cv_mutex;
+std::condition_variable cv;
+
+void think(int id) {
+    std::cout << "Philosopher " << id << " is thinking." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+}
+
+void eat(int id) {
+    std::cout << "Philosopher " << id << " is eating." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+}
+
+void dine(int id) {
+    while (true) {
+        think(id);
+
+        std::unique_lock<std::mutex> lock(cv_mutex);
+        cv.wait(lock, [id]() {
+            int left = id;
+            int right = (id + 1) % numPhilosophers;
+            // Проверяем, свободны ли обе вилки
+            return !forks[left].load() && !forks[right].load();
+            });
+
+        // Забираем вилки
+        forks[id].store(true);
+        forks[(id + 1) % numPhilosophers].store(true);
+
+        // Разблокируем мьютекс, пока философ ест
+        lock.unlock();
+        eat(id);
+
+        // Освобождаем вилки
+        forks[id].store(false);
+        forks[(id + 1) % numPhilosophers].store(false);
+
+        // Уведомляем остальных философов
+        cv.notify_all();
+    }
+}
+
+int main() {
+    std::vector<std::thread> philosophers;
+
+    for (int i = 0; i < numPhilosophers; ++i) {
+        forks[i].store(false);
+    }
+
+    for (int i = 0; i < numPhilosophers; ++i) {
+        philosophers.emplace_back(dine, i);
+    }
+
+    for (auto& philosopher : philosophers) {
+        philosopher.join();
+    }
+
+    return 0;
+}
