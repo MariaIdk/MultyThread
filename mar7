@@ -1,0 +1,77 @@
+#define HAVE_STRUCT_TIMESPEC
+#include <iostream>
+#include <string>
+#include <vector>
+#include <thread>
+#include <pthread.h>
+#include <chrono>
+
+ 
+ 
+#include <cstdlib>
+
+// Структупа для передачи информации в поток
+struct ThreadData {
+    int start;
+    int end;
+    double sum;
+};
+
+// Функция, выполняемая потоками
+void* calculatePi(void* arg) {
+    ThreadData* data = static_cast<ThreadData*>(arg);
+    double sum = 0.0;
+
+    // вычисляет частичную сумму
+    for (int i = data->start; i <= data->end; i++) {
+        double term = 1.0 / (2 * i + 1);
+        if (i % 2 == 0) {
+            sum += term;
+        }
+        else {
+            sum -= term;
+        }
+    }
+
+    data->sum = sum;
+
+    // Возвращаем вычесленную сумму
+    return arg;
+}
+
+int main() {
+    int numThreads;
+    std::cout << "Enter the number of threads: ";
+    std::cin >> numThreads;
+
+    int numIterations = 1000000; // Число итераций
+
+    std::vector<pthread_t> threads(numThreads);
+    std::vector<ThreadData> threadData(numThreads);
+
+    // Create threads and pass data
+    for (int i = 0; i < numThreads; i++) {
+        int start = i * (numIterations / numThreads);
+        int end = (i + 1) * (numIterations / numThreads) - 1;
+
+        threadData[i].start = start;
+        threadData[i].end = end;
+
+        pthread_create(&threads[i], NULL, calculatePi, static_cast<void*>(&threadData[i]));
+    }
+
+    // Ждет, чтобы потоки завершились и вычисляет сумму частичных сумм
+    double totalSum = 0.0;
+    for (int i = 0; i < numThreads; i++) {
+        void* result;
+        pthread_join(threads[i], &result);
+        ThreadData* data = static_cast<ThreadData*>(result);
+        totalSum += data->sum;
+    }
+
+    double pi = 4 * totalSum;
+
+    std::cout << "Approximation of Pi: " << pi << std::endl;
+
+    return 0;
+}
