@@ -16,7 +16,6 @@ void printText(std::string threadName) {
         std::cout << " String # " << i + 1 << "  " << threadName << std::endl;
     }
 }
-//////////////////////////////////////////////////////////////////////////// task 1
 int main() {
 
     std::thread thread2(printText, "2-nd thread");
